@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="Gradle: commons-codec:commons-codec:2.0-SNAPSHOT">
-    <CLASSES>
-      <root url="jar://$MAVEN_REPOSITORY$/commons-codec/commons-codec/2.0-SNAPSHOT/commons-codec-2.0-SNAPSHOT.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

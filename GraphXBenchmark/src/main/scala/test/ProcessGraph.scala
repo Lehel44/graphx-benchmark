@@ -1,12 +1,13 @@
 package test
 
-import model.VertexProperty
+import model.{CommentProperty, ForumProperty, VertexProperty}
 import model.edge.EdgeProperty
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Encoders, Row, SparkSession}
 import org.graphframes.GraphFrame
 import process.{EdgeProcessor, VertexProcessor}
+import util.OptionUtils
 
 //sealed trait EdgeProperty
 
@@ -130,13 +131,33 @@ object ProcessGraph {
       .union(personWorkAtOrganisationRdd)
       .union(postHasTagTagRdd)
 
+    //val forumVerticesDF = spark.read.format("csv").options(SCHEMA_OPTIONS).load(forumVerticesPath)
+    //val forumVerticesThing = forumVerticesDF.collect().map(_.toSeq.map(_.toString))
 
-    val graph = Graph(unifiedVertices, unifiedEdges)
+
+
+    //val forumObjects = forumVerticesThing.map(s => ForumProperty(OptionUtils.toSomeString(s(1)), OptionUtils.toSomeString(s(2)),
+      //OptionUtils.toSomeLong(OptionUtils.toSomeString(s(3))))).toSeq
+
+
+    //val forumSeq: Seq[VertexProperty] = forumObjects
+    val forumDS = spark.createDataset(forumVerticesRdd)(org.apache.spark.sql.Encoders.kryo[Row])
+    forumDS.toDF().show(10)
+
+
+    //import spark.implicits._
+    //implicit val VertexKryoEncoder = Encoders.kryo[VertexProperty]
+    //implicit val CommentKryoEncoder = Encoders.kryo[CommentProperty]
+    //val df = commentRdd.toDF()
+
+    //val schema = OptionUtils.dfCommentSchema(List("title", "creationDate", "moderator"))
+
+    //val graph = Graph(personRdd, personKnowsPersonRdd)
 //    graph.edges.take(10).foreach(println)
 
-    val g: GraphFrame = GraphFrame.fromGraphX(graph)
+    //val g: GraphFrame = GraphFrame.fromGraphX(graph)
 
-    g.vertices.show(10)
+    //g.vertices.show(10)
 
   }
 
