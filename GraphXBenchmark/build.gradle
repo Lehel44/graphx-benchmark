@@ -1,0 +1,30 @@
+group 'graph.benchmark'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'scala'
+apply plugin: 'idea'
+
+repositories{
+    mavenCentral()
+    mavenLocal()
+    maven {
+        url 'https://dl.bintray.com/spark-packages/maven/'
+    }
+}
+
+dependencies {
+    compile group: 'org.scala-lang', name: 'scala-library', version: '2.11.12'
+
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-core
+    compile group: 'org.apache.spark', name: 'spark-core_2.11', version: '2.3.0'
+
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-sql
+    compile group: 'org.apache.spark', name: 'spark-sql_2.11', version: '2.3.0'
+
+    // https://mvnrepository.com/artifact/org.apache.spark/spark-graphx
+    compile group: 'org.apache.spark', name: 'spark-graphx_2.11', version: '2.3.0'
+
+    // https://mvnrepository.com/artifact/graphframes/graphframes
+    compile group: 'graphframes', name: 'graphframes', version: '0.5.0-spark2.1-s_2.11'
+
+}
