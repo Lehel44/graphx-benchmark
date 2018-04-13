@@ -1,6 +1,6 @@
 package test
 
-import model.{CommentProperty, ForumProperty, VertexProperty}
+import model.{CommentProperty, ForumProperty, PersonProperty, VertexProperty}
 import model.edge.EdgeProperty
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
@@ -131,18 +131,54 @@ object ProcessGraph {
       .union(personWorkAtOrganisationRdd)
       .union(postHasTagTagRdd)
 
-    //val forumVerticesDF = spark.read.format("csv").options(SCHEMA_OPTIONS).load(forumVerticesPath)
-    //val forumVerticesThing = forumVerticesDF.collect().map(_.toSeq.map(_.toString))
+    // FORUM TRANSFORM
+    val forumVerticesDF = spark.read.format("csv").options(SCHEMA_OPTIONS).load(forumVerticesPath)
+    val forumVerticesThing = forumVerticesDF.collect().map(_.toSeq.map(_.toString))
+
+    val forumObjects = forumVerticesThing.map(s => (s(0).toString.toLong, ForumProperty(OptionUtils.toSomeString(s(1)), OptionUtils.toSomeString(s(2)),
+      OptionUtils.toSomeLong(OptionUtils.toSomeString(s(3)))))).toSeq
+
+
+    val forumSeq: Seq[(Long, VertexProperty)] = forumObjects
+    val forumDF = spark.createDataset(forumSeq)(Encoders.tuple(Encoders.scalaLong, Encoders.kryo[VertexProperty])).toDF("id", "object")
+
+    //forumDS.foreach(p => println(p._2.asInstanceOf[ForumProperty].title))
+
+  // PERSON TRANSFORM
+
+    val personVerticesDF = spark.read.format("csv").options(SCHEMA_OPTIONS).load(personVerticesPath)
+    val personVerticesThing = personVerticesDF.collect().map(_.toSeq.map(_.toString))
+
+    val personObjects = personVerticesThing.map(s => (s(0).toString.toLong, PersonProperty(
+      OptionUtils.toSomeString(s(1)),
+      OptionUtils.toSomeString(s(2)),
+      OptionUtils.toSomeString(s(3)),
+      OptionUtils.toSomeString(s(4)),
+      OptionUtils.toSomeString(s(5)),
+      OptionUtils.toSomeString(s(6)),
+      OptionUtils.toSomeString(s(7)),
+      OptionUtils.toSomeLong(OptionUtils.toSomeString(s(8))),
+      OptionUtils.toSomeString(s(9)),
+      OptionUtils.toSomeString(s(10))
+    ))
+    ).toSeq
+
+    val personSeq: Seq[(Long, VertexProperty)] = personObjects
+    val personDF = spark.createDataset(personSeq)(Encoders.tuple(Encoders.scalaLong, Encoders.kryo[VertexProperty])).toDF("id", "object")
 
 
 
-    //val forumObjects = forumVerticesThing.map(s => ForumProperty(OptionUtils.toSomeString(s(1)), OptionUtils.toSomeString(s(2)),
-      //OptionUtils.toSomeLong(OptionUtils.toSomeString(s(3))))).toSeq
 
+    val unionShitDF = forumDF.union(personDF).toDF
+    //unionShitDF.printSchema()
 
-    //val forumSeq: Seq[VertexProperty] = forumObjects
-    val forumDS = spark.createDataset(forumVerticesRdd)(org.apache.spark.sql.Encoders.kryo[Row])
-    forumDS.toDF().show(10)
+    // FORUM - PERSON EDGES
+
+    val forumHasMemberPersonEdgesDF = spark.read.format("csv").options(SCHEMA_OPTIONS).load(forumHasMemberPersonEdgesPath).toDF("src", "dst", "type")
+
+    val gf = GraphFrame(unionShitDF, forumHasMemberPersonEdgesDF)
+
+    gf.vertices.show()
 
 
     //import spark.implicits._

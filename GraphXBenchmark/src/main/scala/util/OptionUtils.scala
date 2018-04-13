@@ -25,5 +25,4 @@ object OptionUtils {
     StructField(name = "moderator", dataType = LongType, nullable = false ))
   )
 
-
 }
