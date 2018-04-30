@@ -1,18 +1,11 @@
 package test
 
-import model.{CommentProperty, ForumProperty, PersonProperty, VertexProperty}
-import model.edge.EdgeProperty
-import org.apache.spark.graphx.{Edge, Graph, VertexId}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Encoders, Row, SparkSession}
-import org.graphframes.GraphFrame
-import process.{EdgeProcessor, VertexProcessor}
-import util.{GraphUtils, OptionUtils}
+import util.GraphUtils
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 import org.apache.spark.sql.functions._
 
-import scala.reflect.macros.whitebox
 
 //sealed trait EdgeProperty
 
@@ -87,13 +80,16 @@ object ProcessGraph {
 
 
 
-    val startDate = "2008-02-13"
+   /* val startDate = "2008-02-13"
     val endDate = "2018-02-12"
     val country1 = "Nugegoda"
     val country2 = "Chief"
 
     val df = biQuery2(startDate, endDate, country1, country2)
-    df.show()
+    df.show()*/
+
+    val df3 = biQuery3(2010, 1)
+    df3.show()
   }
 
   // ----------------------------------------------------------------------------------------------------------------
@@ -231,4 +227,47 @@ object ProcessGraph {
     personPlaceMessageTagDf
   }
 
+  // ----------------------------------------------------------------------------------------------------------------
+  // ----------------------------------------------   QUERY 2   -----------------------------------------------------
+  // ----------------------------------------------------------------------------------------------------------------
+  def biQuery3(messageYear: Int, messageMonth: Int) : DataFrame = {
+    import spark.implicits._
+
+    // Count next month and year
+    val nextMessageYear = messageYear + messageMonth / 12
+    val nextMessageMonth = (messageMonth + 1) % 12
+
+    // From the commentHasTagTag and postHasTag dataframes selects the tag id, creates a union of them.
+    val commentTagIds = commentHasTagTagEdgesDf
+      .withColumnRenamed("Comment.id", "message_id").withColumnRenamed("Tag.id", "tag_id")
+    val postTagIds = postHasTagTagEdgesDf
+      .withColumnRenamed("Comment.id", "message_id").withColumnRenamed("Tag.id", "tag_id")
+    val messageTagIds = commentTagIds.union(postTagIds)
+
+    // Filter the messages with message year and month
+    val commentTempDf = commentVerticesDf.select($"id", $"creationDate")
+    val postTempDf = postVerticesDf.select($"id", $"creationDate")
+    val messageDf = commentTempDf.union(postTempDf)
+      .withColumn("creationDate", expr("substring(creationDate, 1, length(creationDate)-18)"))
+      .withColumn("creationDate", to_date($"creationDate", "yyyy-mm-dd"))
+      .filter(year($"creationDate").equalTo(messageYear) || year($"creationDate").equalTo(nextMessageYear))
+      .filter(month($"creationDate").equalTo(messageMonth) || month($"creationDate").equalTo(nextMessageMonth))
+
+    // Inner join the messages with messageTagIds and the result with tags. Then group it
+    //(month($"creationDate").equalTo(messageMonth)) as "month1", (month($"creationDate").equalTo(nextMessageMonth)) as "month2"
+    val messageTagIdDf = messageDf
+      .join(messageTagIds, $"id" === $"message_id")
+      .join(tagVerticesDf.withColumnRenamed("id", "tag_table_id"), $"tag_id" === $"tag_table_id")
+      .groupBy($"name", month($"creationDate") as "month")
+      .agg(
+        count(when(month($"creationDate").equalTo(messageMonth), 1)) as "countMonth1",
+        count(when(month($"creationDate").equalTo(nextMessageMonth), 1)) as "countMonth2"
+      )
+      .withColumn("diff", abs($"countMonth1" - $"countMonth2"))
+      .orderBy(desc("diff"), asc("name"))
+      .withColumnRenamed("name", "tag.name")
+      .drop($"month")
+
+      messageTagIdDf
+  }
 }
