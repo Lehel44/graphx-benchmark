@@ -14,7 +14,7 @@ object Test {
       .getOrCreate()
 
     val sc = spark.sparkContext
-
+    /*
     // Create an RDD for the vertices
     val users: RDD[(VertexId, (String, String))] =
       sc.parallelize(Array((3L, ("rxin", "student")), (7L, ("jgonzal", "postdoc")),
@@ -29,6 +29,9 @@ object Test {
     val graph = Graph(users, relationships, defaultUser)
 
     val asd = graph.vertices.collect()
+    */
+
+
   }
 
 }
