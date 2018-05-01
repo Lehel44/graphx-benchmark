@@ -45,7 +45,7 @@ object ProcessGraph {
   val personHasInterestTagEdgesPath = "src/main/resources/person_hasInterest_tag_0_0.csv"
   val personKnowsPersonEdgesPath = "src/main/resources/person_knows_person_0_0.csv"
   val personLikesCommentEdgesPath = "src/main/resources/person_likes_comment_0_0.csv"
-  val personLikesPostEdgesPath = "src/main/resources/person_likes_comment_0_0.csv"
+  val personLikesPostEdgesPath = "src/main/resources/person_likes_post_0_0.csv"
   val personStudyAtOrganisationEdgesPath = "src/main/resources/person_studyAt_organisation_0_0.csv"
   val personWorkAtOrganisationEdgesPath = "src/main/resources/person_workAt_organisation_0_0.csv"
   val postHasTagTagEdgesPath = "src/main/resources/post_hasTag_tag_0_0.csv"
@@ -79,17 +79,27 @@ object ProcessGraph {
   def main(args: Array[String]): Unit = {
 
 
+    /* val startDate = "2008-02-13"
+     val endDate = "2018-02-12"
+     val country1 = "Nugegoda"
+     val country2 = "Chief"
 
-   /* val startDate = "2008-02-13"
-    val endDate = "2018-02-12"
-    val country1 = "Nugegoda"
-    val country2 = "Chief"
+     val df = biQuery2(startDate, endDate, country1, country2)
+     df.show()
 
-    val df = biQuery2(startDate, endDate, country1, country2)
-    df.show()*/
+     val df3 = biQuery3(2010, 1)
+     df3.show()
 
-    val df3 = biQuery3(2010, 1)
-    df3.show()
+     val df4 = biQuery4("Philosopher", "Australia")
+     df4.show()
+
+     val df5 = biQuery5("Greece")
+     df5.show()*/
+
+    val df6 = biQuery6("Good_Vibrations")
+    df6.show()
+
+
   }
 
   // ----------------------------------------------------------------------------------------------------------------
@@ -114,10 +124,9 @@ object ProcessGraph {
       .withColumn("year", year($"creationDate"))
 
 
-
     // UDF for year group types based on length
     val lengthCategory = udf((length: Int) => {
-      if (0 <= length && length < 40 ) 0
+      if (0 <= length && length < 40) 0
       else if (0 <= length && length < 80) 1
       else if (80 <= length && length < 160) 2
       else if (160 <= length) 3
@@ -139,7 +148,6 @@ object ProcessGraph {
   // ----------------------------------------------------------------------------------------------------------------
   // ----------------------------------------------   QUERY 2   -----------------------------------------------------
   // ----------------------------------------------------------------------------------------------------------------
-
   def biQuery2(startDate: String, endDate: String, country1: String, country2: String): DataFrame = {
     import spark.implicits._
     // Union comment and post dataframes as they are both message types.
@@ -228,9 +236,9 @@ object ProcessGraph {
   }
 
   // ----------------------------------------------------------------------------------------------------------------
-  // ----------------------------------------------   QUERY 2   -----------------------------------------------------
+  // ----------------------------------------------   QUERY 3   -----------------------------------------------------
   // ----------------------------------------------------------------------------------------------------------------
-  def biQuery3(messageYear: Int, messageMonth: Int) : DataFrame = {
+  def biQuery3(messageYear: Int, messageMonth: Int): DataFrame = {
     import spark.implicits._
 
     // Count next month and year
@@ -254,7 +262,6 @@ object ProcessGraph {
       .filter(month($"creationDate").equalTo(messageMonth) || month($"creationDate").equalTo(nextMessageMonth))
 
     // Inner join the messages with messageTagIds and the result with tags. Then group it
-    //(month($"creationDate").equalTo(messageMonth)) as "month1", (month($"creationDate").equalTo(nextMessageMonth)) as "month2"
     val messageTagIdDf = messageDf
       .join(messageTagIds, $"id" === $"message_id")
       .join(tagVerticesDf.withColumnRenamed("id", "tag_table_id"), $"tag_id" === $"tag_table_id")
@@ -268,6 +275,222 @@ object ProcessGraph {
       .withColumnRenamed("name", "tag.name")
       .drop($"month")
 
-      messageTagIdDf
+    messageTagIdDf
+  }
+
+  // ----------------------------------------------------------------------------------------------------------------
+  // ----------------------------------------------   QUERY 4   -----------------------------------------------------
+  // ----------------------------------------------------------------------------------------------------------------
+  def biQuery4(tagName: String, countryName: String): DataFrame = {
+    import spark.implicits._
+
+    // From tag class side filter the classes by the name parameter and join them with the Tag and Post dataframes.
+    val postDf = tagClassVerticesDf
+      .select($"id" as "tag_class_id", $"name" as "tag_class_name")
+      .filter($"tag_class_name".equalTo(tagName))
+      .join(
+        tagVerticesDf.withColumnRenamed("id", "tag_id"), $"hasType" === $"tag_class_id"
+      )
+      .select("tag_id")
+      .join(
+        postHasTagTagEdgesDf.withColumnRenamed("Post.id", "jt_post_id").withColumnRenamed("Tag.id", "jt_tag_id"),
+        $"tag_id" === $"jt_tag_id"
+      )
+      .select($"jt_post_id")
+      .join(
+        postVerticesDf.withColumnRenamed("Forum.id", "post_forum_id"), $"id" === $"jt_post_id"
+      )
+      .select($"id" as "post_id", $"post_forum_id")
+
+    // From the country side filter the country and join it with city, person and forum.
+    val personDf = placeVerticesDf
+      .filter($"name".equalTo(countryName))
+      .select($"id" as "country_id")
+      .join(
+        placeVerticesDf, $"country_id" === $"isPartOf"
+      )
+      .select($"id" as "city_id")
+      .join(
+        personVerticesDf, $"place" === $"city_id"
+      )
+      .select($"id" as "person_id")
+
+    // Now join the forum dataframe with persons and posts
+
+    val forumDf = forumVerticesDf
+      .join(
+        postDf, $"id" === $"post_forum_id"
+      )
+      .distinct()
+      .join(
+        personDf, $"moderator" === $"person_id"
+      )
+      .groupBy($"id", $"title", $"creationDate", $"person_id")
+      .agg(count("*") as "postCount")
+      .orderBy(desc("postCount"), asc("id"))
+      .select($"id" as "forum.id", $"title" as "forum.title", $"creationDate" as "forum.creationDate",
+        $"person_id" as "person.id", $"postCount")
+
+    forumDf
+  }
+
+  // ----------------------------------------------------------------------------------------------------------------
+  // ----------------------------------------------   QUERY 5   -----------------------------------------------------
+  // ----------------------------------------------------------------------------------------------------------------
+  def biQuery5(countryName: String): DataFrame = {
+    import spark.implicits._
+
+    // First find the most popular forum
+    val forumDf = placeVerticesDf
+      .filter($"name".equalTo(countryName))
+      .select($"id" as "country_id")
+      .join(
+        placeVerticesDf, $"country_id" === $"isPartOf"
+      )
+      .select($"id" as "city_id")
+      .join(
+        personVerticesDf
+          .withColumnRenamed("id", "person_id"),
+        $"place" === $"city_id"
+      )
+      .join(
+        forumHasMemberPersonEdgesDf
+          .withColumnRenamed("Forum.id", "jt_forum_id")
+          .withColumnRenamed("Person.id", "jt_person_id"),
+        $"person_id" === $"jt_person_id"
+
+      )
+      .groupBy($"jt_forum_id")
+      .agg(count("*") as "member")
+      .orderBy(desc("member"), asc("jt_forum_id"))
+      .limit(100)
+
+    // Get the most popular forum members and count their posts in any forum.
+    val memberDf = forumDf
+      .join(
+        forumHasMemberPersonEdgesDf
+          .withColumnRenamed("Forum.id", "forumPerson_forum_id")
+          .withColumnRenamed("Person.id", "forumPerson_person_id"), $"forumPerson_forum_id" === $"jt_forum_id"
+      )
+      .select($"forumPerson_person_id")
+      .distinct()
+      .join(
+        personVerticesDf
+          .withColumnRenamed("id", "person_id"), $"forumPerson_person_id" === $"person_id"
+      )
+      .select($"person_id", $"firstName", $"lastName", $"creationDate")
+
+    val memberPostDf = memberDf
+      .join(
+        postVerticesDf
+          .withColumnRenamed("id", "post_id")
+          .withColumnRenamed("creationDate", "post_creationDate"),
+          $"creator" === $"person_id"
+      )
+      .join(
+        forumDf,
+        $"jt_forum_id" === $"post_id"
+      )
+      .groupBy($"person_id", $"firstName", $"lastName", $"creationDate")
+      .agg(count("*") as "postCount")
+      .orderBy(desc("postCount"), asc("person_id"))
+      .select($"person_id" as "person.id", $"firstName" as "person.firstName", $"lastName" as "person.lastName",
+        $"creationDate" as "person.creationDate", $"postCount")
+
+    memberPostDf
+  }
+
+  // ----------------------------------------------------------------------------------------------------------------
+  // ----------------------------------------------   QUERY 6   -----------------------------------------------------
+  // ----------------------------------------------------------------------------------------------------------------
+  def biQuery6(tagName: String): DataFrame = {
+    import spark.implicits._
+
+    // Union comment and post dataframes as they are both message types.
+    val postTempDf = postVerticesDf.select($"id", $"creator", $"length")
+    val commentTempDf = commentVerticesDf.select($"id", $"creator", $"length")
+    var messageDf = GraphUtils.unionDifferentTables(postTempDf, commentTempDf)
+
+    // Filter with tag name.
+    val filteredDf = tagVerticesDf
+      .withColumnRenamed("id", "tag_id")
+      .filter($"name".equalTo(tagName))
+
+    // Join tags with message join tables.
+    val commentIdDf = filteredDf
+      .join(
+        commentHasTagTagEdgesDf
+          .withColumnRenamed("Comment.id", "message_id")
+          .withColumnRenamed("Tag.id", "c_tag_id"),
+          $"tag_id" === $"c_tag_id"
+      ).select($"message_id")
+
+    val postIdDf = filteredDf
+      .join(
+        postHasTagTagEdgesDf
+          .withColumnRenamed("Post.id", "message_id")
+          .withColumnRenamed("Tag.id", "p_tag_id"),
+        $"tag_id" === $"p_tag_id"
+      ).select("message_id")
+
+    // Get distinct messages.
+    val selectedMessageDf = commentIdDf.union(postIdDf)
+      .distinct()
+      .join(
+        messageDf,
+        $"id" === $"message_id"
+      )
+      .select($"message_id", $"creator")
+
+
+    // Get persons associated with these messages
+    val personMessageDf = selectedMessageDf
+      .join(
+        personVerticesDf,
+        $"creator" === $"id"
+      )
+      .select($"id" as "person_id", $"message_id")
+
+    // Count likes.
+    var personMessageDfWithLikes = personMessageDf
+      .join(
+        personLikesCommentEdgesDf
+          .withColumnRenamed("Comment.id", "comment_id"),
+        $"message_id" === $"comment_id",
+        "left_outer"
+      )
+      .join(
+        personLikesPostEdgesDf
+          .withColumnRenamed("Post.id", "post_id"),
+        $"message_id" === $"post_id",
+        "left_outer"
+      )
+
+    val messageCountDf = personMessageDfWithLikes
+        .withColumnRenamed("person_id", "agg_person_id")
+      .groupBy("agg_person_id")
+      .agg(count("*") as "messageCount")
+
+    personMessageDfWithLikes = personMessageDfWithLikes
+      .join(
+        messageCountDf,
+        $"person_id" === $"agg_person_id"
+      )
+      .groupBy($"person_id", $"message_id", $"messageCount")
+      .agg(count("*") as "likeCount")
+
+    val resultDf = personMessageDfWithLikes
+      .join(
+        commentVerticesDf,
+        $"replyOfComment" === $"message_id" || $"replyOfPost" === $"message_id",
+        "left_outer"
+      )
+      .groupBy($"person_id", $"message_id", $"messageCount", $"likeCount")
+      .agg(count("*") as "replyCount")
+      .withColumn("score", $"messageCount" * 1 + $"replyCount" * 2 + $"likeCount" * 10)
+      .orderBy(desc("score"), asc("person_id"))
+      .select($"person_id" as "person.id", $"replyCount", $"likeCount", $"messageCount", $"score")
+    
+    resultDf
   }
 }
