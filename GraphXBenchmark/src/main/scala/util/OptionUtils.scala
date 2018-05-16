@@ -25,4 +25,11 @@ object OptionUtils {
     StructField(name = "moderator", dataType = LongType, nullable = false ))
   )
 
+  def time[A](f: => A) = {
+    val s = System.nanoTime
+    val ret = f
+    println("time: " + (System.nanoTime - s) / 1e9 + " seconds")
+    ret
+  }
+
 }
